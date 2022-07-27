@@ -22,6 +22,7 @@ other container management tools like podman.
        DIR=/mail       # docker-compose directory
        CONTAINER=mail  # docker container name
        TIMEOUT=3600    # a lot of time for a graceful container stop
+       DOCKER=docker   # name of your container management command, e.g. podman
 
 ## Bash Completion:
 
