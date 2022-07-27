@@ -5,6 +5,7 @@
 DIR=/mail	# docker-compose directory
 CONTAINER=mail	# docker container name
 TIMEOUT=3600	# a lot of time for a graceful container stop
+DOCKER=docker # name of your container management command, e.g. podman
 
 # --------------------------------------------------------------------
 
@@ -32,12 +33,12 @@ _checkBin() {
 }
 
 # Dependencies
-_checkBin "cat" "cut" "docker" "docker-compose" "fold" "jq" "printf" "sed" "tail" "tput" "tr"
+_checkBin "cat" "cut" "${DOCKER}" "${DOCKER}-compose" "fold" "jq" "printf" "sed" "tail" "tput" "tr"
 
 # Check if container is running
 # Skip check, if first argument is empty, "status" or "start"
 if [ -n "${1:-}" ] && [ "${1:-}" != "status" ] && [ "${1:-}" != "start" ] && [ "${1:-}" != "restart" ]; then
-	if [ -z "$(docker ps -q --filter "name=^$CONTAINER$")" ]; then
+	if [ -z "$(${DOCKER} ps -q --filter "name=^$CONTAINER$")" ]; then
 		echo -e "Error: Container '$CONTAINER' is not up.\n" >&2
 		exit 1
 	fi
@@ -68,57 +69,57 @@ _status() {
 
 case "${1:-}" in
 	status) # Show status
-		if [ -n "$(docker ps -q --filter "name=^$CONTAINER$")" ]; then
+		if [ -n "$(${DOCKER} ps -q --filter "name=^$CONTAINER$")" ]; then
 			# Container uptime
-			_status "Container" "$(docker ps --no-trunc --filter "name=^$CONTAINER$" --format "{{.Status}}")"
+			_status "Container" "$(${DOCKER} ps --no-trunc --filter "name=^$CONTAINER$" --format "{{.Status}}")"
 
 			# Version
-			_status "Version" "$(docker exec "$CONTAINER" cat /VERSION)"
+			_status "Version" "$(${DOCKER} exec "$CONTAINER" cat /VERSION)"
 
 			# Fail2ban
-			docker exec "$CONTAINER" ls /var/run/fail2ban/fail2ban.sock &>/dev/null &&
-			_status "Fail2ban" "$(docker exec "$CONTAINER" fail2ban)"
+			${DOCKER} exec "$CONTAINER" ls /var/run/fail2ban/fail2ban.sock &>/dev/null &&
+			_status "Fail2ban" "$(${DOCKER} exec "$CONTAINER" fail2ban)"
 
 			# Package updates available?
-			_status "Packages" "$(docker exec "$CONTAINER" bash -c 'apt -q update 2>/dev/null | grep "All packages are up to date" || echo "Updates available"')"
+			_status "Packages" "$(${DOCKER} exec "$CONTAINER" bash -c 'apt -q update 2>/dev/null | grep "All packages are up to date" || echo "Updates available"')"
 
 			# Published ports
-			_status "Ports" "$(docker inspect "$CONTAINER" | jq -r '.[].NetworkSettings.Ports | .[] | select(. != null) | tostring' | cut -d'"' -f8 | tr "\n" " ")"
+			_status "Ports" "$(${DOCKER} inspect "$CONTAINER" | jq -r '.[].NetworkSettings.Ports | .[] | select(. != null) | tostring' | cut -d'"' -f8 | tr "\n" " ")"
 
 			# Postfix mail queue
-			POSTFIX=$(docker exec "$CONTAINER" postqueue -p | tail -1 | cut -d' ' -f5)
+			POSTFIX=$(${DOCKER} exec "$CONTAINER" postqueue -p | tail -1 | cut -d' ' -f5)
 			[ -z "$POSTFIX" ] && POSTFIX="Mail queue is empty" || POSTFIX+=" mail(s) queued"
 			_status "Postfix" "$POSTFIX"
 
 			# Service status
-			_status "Supervisor" "$(docker exec "$CONTAINER" supervisorctl status | sort -b -k2,2)"
+			_status "Supervisor" "$(${DOCKER} exec "$CONTAINER" supervisorctl status | sort -b -k2,2)"
 		else
 			echo "Container: down"
 		fi
 		;;
 
 	config)	# show configuration
-		docker exec "$CONTAINER" cat /etc/dms-settings
+		${DOCKER} exec "$CONTAINER" cat /etc/dms-settings
 		;;
 
 	start)	# Start container
-		if [ -n "$(docker ps -q --filter "name=^$CONTAINER$")" ]; then
+		if [ -n "$(${DOCKER} ps -q --filter "name=^$CONTAINER$")" ]; then
 			echo "Container '$CONTAINER' is already up."
 			echo
 			exit
 		fi
 		# If container is stopped, remove container / network etc.
-		docker-compose down -t "$TIMEOUT" 2>/dev/null || true
-		docker-compose up -d
+		${DOCKER}-compose down -t "$TIMEOUT" 2>/dev/null || true
+		${DOCKER}-compose up -d
 		;;
 
 	stop)	# Stop container
-		docker-compose down -t "$TIMEOUT"
+		${DOCKER}-compose down -t "$TIMEOUT"
 		;;
 
 	resta*)	#  Restart container
-		docker-compose down -t "$TIMEOUT"
-		docker-compose up -d
+		${DOCKER}-compose down -t "$TIMEOUT"
+		${DOCKER}-compose up -d
 		;;
 
 	setup)  # Invoke 'setup.sh'
@@ -134,11 +135,11 @@ case "${1:-}" in
 		;;
 
 	queue)	# Show mail queue
-		docker exec "$CONTAINER" postqueue -p
+		${DOCKER} exec "$CONTAINER" postqueue -p
 		;;
 
 	flush)	# Flush mail queue
-		docker exec "$CONTAINER" postqueue -f
+		${DOCKER} exec "$CONTAINER" postqueue -f
 		echo "Queue flushed."
 		;;
 
@@ -146,7 +147,7 @@ case "${1:-}" in
 		if [ -z "${2:-}" ]; then
 			echo "Error: Queue ID missing."
 		else
-			docker exec "$CONTAINER" postcat -q "$2"
+			${DOCKER} exec "$CONTAINER" postcat -q "$2"
 		fi >&2
 		;;
 
@@ -158,58 +159,58 @@ case "${1:-}" in
 			for i in "$@"; do
 				ARG+=("-d" "$i")
 			done
-			docker exec "$CONTAINER" postsuper "${ARG[@]}"
+			${DOCKER} exec "$CONTAINER" postsuper "${ARG[@]}"
 		fi
 		;;
 
 	fail*)	# Interact with fail2ban
 		shift
-		docker exec "$CONTAINER" fail2ban "$@"
+		${DOCKER} exec "$CONTAINER" fail2ban "$@"
 		;;
 
 	ports)	# Show published ports
 		echo "Published ports:"
 		echo
-		docker inspect "$CONTAINER" | jq -r '.[].NetworkSettings.Ports | .[] | select(. != null) | tostring' | cut -d'"' -f4,8 | sed 's/"/:/g'
+		${DOCKER} inspect "$CONTAINER" | jq -r '.[].NetworkSettings.Ports | .[] | select(. != null) | tostring' | cut -d'"' -f4,8 | sed 's/"/:/g'
 		;;
 
 	postc*)	# Show postfix configuration
 		shift
-		docker exec "$CONTAINER" postconf "$@"
+		${DOCKER} exec "$CONTAINER" postconf "$@"
 		;;
 
 	logs)	# Show logs
 		if [ "${2:-}" == "-f" ]; then
-			docker logs -f "$CONTAINER"
+			${DOCKER} logs -f "$CONTAINER"
 		else
-			docker logs "$CONTAINER"
+			${DOCKER} logs "$CONTAINER"
 		fi
 		;;
 
 	login)	# Run container shell
-		docker exec -it "$CONTAINER" bash
+		${DOCKER} exec -it "$CONTAINER" bash
 		;;
 
 	super*) # Interact with supervisorctl
 		shift
-		docker exec -it "$CONTAINER" supervisorctl "$@"
+		${DOCKER} exec -it "$CONTAINER" supervisorctl "$@"
 		;;
 
 	update-c*) # Check for container package updates
-		docker exec -it "$CONTAINER" bash -c 'apt update && echo && apt list --upgradable'
+		${DOCKER} exec -it "$CONTAINER" bash -c 'apt update && echo && apt list --upgradable'
 		;;
 
 	update-p*) # Update container packages
-		docker exec -it "$CONTAINER" bash -c 'apt update && echo && apt-get upgrade'
+		${DOCKER} exec -it "$CONTAINER" bash -c 'apt update && echo && apt-get upgrade'
 		;;
 
 	version*) # Show versions
-		DMS_VER="$(docker exec "$CONTAINER" cat /VERSION)"
+		DMS_VER="$(${DOCKER} exec "$CONTAINER" cat /VERSION)"
 		printf "%-15s%s\n\n" "Mailserver:" "$DMS_VER"
 		PACKAGES=("amavisd-new" "clamav" "dovecot-core" "fail2ban" "opendkim" "opendmarc" "postfix" "spamassassin" "supervisor")
 		for i in "${PACKAGES[@]}"; do
 			printf "%-15s" "$i:"
-			docker exec "$CONTAINER" bash -c "dpkg -s $i | grep ^Version | cut -d' ' -f2"
+			${DOCKER} exec "$CONTAINER" bash -c "dpkg -s $i | grep ^Version | cut -d' ' -f2"
 		done
 		;;
 

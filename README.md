@@ -2,11 +2,14 @@
 
 mailctl is a script to easily interact with [docker-mailserver](https://github.com/docker-mailserver/docker-mailserver/).
 
+This fork adds the option to set the `docker` command, making it usable with 
+other container management tools like podman.
+
 ## Installation:
 
 1. Download `mailctl`
 
-       curl -o mailctl https://raw.githubusercontent.com/casperklein/docker-mailserver-mailctl/master/mailctl
+       curl -o mailctl https://raw.githubusercontent.com/alterNERDtive/docker-mailserver-mailctl/master/mailctl
 
 1. Make `mailctl` executable
 
@@ -24,7 +27,7 @@ mailctl is a script to easily interact with [docker-mailserver](https://github.c
 
 1. Download `mailctl-completion.bash`
 
-       curl -o mailctl-completion.bash https://raw.githubusercontent.com/casperklein/docker-mailserver-mailctl/master/mailctl-completion.bash
+       curl -o mailctl-completion.bash https://raw.githubusercontent.com/alterNERDtive/docker-mailserver-mailctl/master/mailctl-completion.bash
 
 2. Source `mailctl-completion.bash` in your `.bashrc`
 
